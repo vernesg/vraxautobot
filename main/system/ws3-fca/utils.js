@@ -897,3 +897,482 @@ function formatDeltaEvent(m) {
                         logMessageData = { name: m.name };
                         break;
                 case "ParticipantsAddedToGroupThread":
+        logMessageType = "log:subscribe";
+                        logMessageData = { addedParticipants: m.addedParticipants };
+                        break;
+                case "ParticipantLeftGroupThread":
+                        logMessageType = "log:unsubscribe";
+                        logMessageData = { leftParticipantFbId: m.leftParticipantFbId };
+                        break;
+                case "ApprovalQueue":
+                        logMessageType = "log:approval-queue";
+                        logMessageData = {
+                                approvalQueue: {
+                                        action: m.action,
+                                        recipientFbId: m.recipientFbId,
+                                        requestSource: m.requestSource,
+                                        ...m.messageMetadata
+                                }
+                        };
+        }
+        return {
+                type: "event",
+                threadID: formatID(
+                        (
+                                m.messageMetadata.threadKey.threadFbId ||
+                                m.messageMetadata.threadKey.otherUserFbId
+                        ).toString()
+                ),
+                messageID: m.messageMetadata.messageId.toString(),
+                logMessageType,
+                logMessageData,
+                logMessageBody: m.messageMetadata.adminText,
+                timestamp: m.messageMetadata.timestamp,
+                author: m.messageMetadata.actorFbId,
+    participantIDs: m.participants
+        };
+}
+
+function formatTyp(event) {
+        return {
+                isTyping: !!event.st,
+                from: event.from.toString(),
+                threadID: formatID(
+                        (event.to || event.thread_fbid || event.from).toString()
+                ),
+                // When receiving typ indication from mobile, `from_mobile` isn't set.
+                // If it is, we just use that value.
+                fromMobile: event.hasOwnProperty("from_mobile") ? event.from_mobile : true,
+                userID: (event.realtime_viewer_fbid || event.from).toString(),
+                type: "typ"
+        };
+}
+
+function formatDeltaReadReceipt(delta) {
+        // otherUserFbId seems to be used as both the readerID and the threadID in a 1-1 chat.
+        // In a group chat actorFbId is used for the reader and threadFbId for the thread.
+        return {
+                reader: (delta.threadKey.otherUserFbId || delta.actorFbId).toString(),
+                time: delta.actionTimestampMs,
+                threadID: formatID(
+                        (delta.threadKey.otherUserFbId || delta.threadKey.threadFbId).toString()
+                ),
+                type: "read_receipt"
+        };
+}
+
+function formatReadReceipt(event) {
+        return {
+                reader: event.reader.toString(),
+                time: event.time,
+                threadID: formatID((event.thread_fbid || event.reader).toString()),
+                type: "read_receipt"
+        };
+}
+
+function formatRead(event) {
+        return {
+                threadID: formatID(
+                        (
+                                (event.chat_ids && event.chat_ids[0]) ||
+                                (event.thread_fbids && event.thread_fbids[0])
+                        ).toString()
+                ),
+                time: event.timestamp,
+                type: "read"
+        };
+}
+
+function getFrom(str, startToken, endToken) {
+        const start = str.indexOf(startToken) + startToken.length;
+        if (start < startToken.length) return "";
+
+        const lastHalf = str.substring(start);
+        const end = lastHalf.indexOf(endToken);
+        if (end === -1) {
+                throw Error(
+                        "Could not find endTime `" + endToken + "` in the given string."
+                );
+        }
+        return lastHalf.substring(0, end);
+}
+
+function makeParsable(html) {
+        const withoutForLoop = html.replace(/for\s*\(\s*;\s*;\s*\)\s*;\s*/, "");
+
+        // (What the fuck FB, why windows style newlines?)
+        // So sometimes FB will send us base multiple objects in the same response.
+        // They're all valid JSON, one after the other, at the top level. We detect
+        // that and make it parse-able by JSON.parse.
+        //       Ben - July 15th 2017
+        //
+        // It turns out that Facebook may insert random number of spaces before
+        // next object begins (issue #616)
+        //       rav_kr - 2018-03-19
+        const maybeMultipleObjects = withoutForLoop.split(/\}\r\n *\{/);
+        if (maybeMultipleObjects.length === 1) return maybeMultipleObjects;
+
+        return "[" + maybeMultipleObjects.join("},{") + "]";
+}
+
+function arrToForm(form) {
+        return arrayToObject(
+                form,
+                function (v) {
+                        return v.name;
+                },
+                function (v) {
+                        return v.val;
+                }
+        );
+}
+
+function arrayToObject(arr, getKey, getValue) {
+        return arr.reduce(function (acc, val) {
+                acc[getKey(val)] = getValue(val);
+                return acc;
+        }, {});
+}
+
+function getSignatureID() {
+        return Math.floor(Math.random() * 2147483648).toString(16);
+}
+
+function generateTimestampRelative() {
+        const d = new Date();
+        return d.getHours() + ":" + padZeros(d.getMinutes());
+}
+
+function makeDefaults(html, userID, ctx) {
+        let reqCounter = 1;
+        const fb_dtsg = getFrom(html, 'name="fb_dtsg" value="', '"');
+
+        let ttstamp = "2";
+        for (let i = 0; i < fb_dtsg.length; i++) {
+                ttstamp += fb_dtsg.charCodeAt(i);
+        }
+        const revision = getFrom(html, 'revision":', ",");
+
+        function mergeWithDefaults(obj) {
+                const newObj = {
+      av: userID,
+                        __user: userID,
+                        __req: (reqCounter++).toString(36),
+                        __rev: revision,
+                        __a: 1,
+                        fb_dtsg: ctx.fb_dtsg || fb_dtsg,
+                        jazoest: ctx.ttstamp || ttstamp
+                }
+
+                if (!obj) return newObj;
+
+                for (var prop in obj) {
+                        if (obj.hasOwnProperty(prop)) {
+                                if (!newObj[prop]) 
+          newObj[prop] = obj[prop];
+                        }
+                }
+
+                return newObj;
+        }
+
+        return {
+                get: (url, jar, qs, ctxx, customHeader = {}) => get(url, jar, mergeWithDefaults(qs), ctx.globalOptions, ctxx || ctx, customHeader),
+                post: (url, jar, form, ctxx, customHeader = {}) => post(url, jar, mergeWithDefaults(form), ctx.globalOptions, ctxx || ctx, customHeader),
+                postFormData: (url, jar, form, qs, ctxx) => postFormData(url, jar, mergeWithDefaults(form), mergeWithDefaults(qs), ctx.globalOptions, ctxx || ctx)
+        };
+}
+
+function parseAndCheckLogin(ctx, http, retryCount) {
+  var delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  var _try = (tryData) => new Promise(function (resolve, reject) {
+    try {
+      resolve(tryData());
+    } catch (error) {
+      reject(error);
+    }
+  });
+  if (retryCount == undefined) retryCount = 0;
+
+        return function (data) {
+    function any() {
+      if (data.statusCode >= 500 && data.statusCode < 600) {
+        if (retryCount >= 5) {
+          const err = new Error("Request retry failed. Check the `res` and `statusCode` property on this error.");
+                                        err.statusCode = data.statusCode;
+                                        err.res = data.body;
+                                        err.error = "Request retry failed. Check the `res` and `statusCode` property on this error.";
+                                        throw err;
+        }
+        retryCount++;
+        const retryTime = Math.floor(Math.random() * 5000);
+        console.warn("parseAndCheckLogin", "Got status code " + data.statusCode + " - " + retryCount + ". attempt to retry in " + retryTime + " milliseconds...");
+                                const url = data.request.uri.protocol + "//" + data.request.uri.hostname + data.request.uri.pathname;
+        if (data.request.headers["Content-Type"].split(";")[0] === "multipart/form-data") {
+                                        return delay(retryTime)
+            .then(function () {
+              return http
+                .postFormData(url, ctx.jar, data.request.formData);
+            })
+            .then(parseAndCheckLogin(ctx, http, retryCount));
+        }
+        else {
+          return delay(retryTime)
+            .then(function () {
+              return http
+                .post(url, ctx.jar, data.request.formData);
+            })
+            .then(parseAndCheckLogin(ctx, http, retryCount));
+        }
+      }
+
+      if (data.statusCode === 404) return;
+
+      if (data.statusCode !== 200)
+                                throw new Error("parseAndCheckLogin got status code: " + data.statusCode + ". Bailing out of trying to parse response.");
+
+      let res = null;
+                        try {
+                                res = JSON.parse(makeParsable(data.body));
+      } catch (e) {
+                                const err = new Error("JSON.parse error. Check the `detail` property on this error.");
+                                err.error = "JSON.parse error. Check the `detail` property on this error.";
+                                err.detail = e;
+                                err.res = data.body;
+                                throw err;
+                        }
+
+                        // In some cases the response contains only a redirect URL which should be followed
+                        if (res.redirect && data.request.method === "GET") {
+                                return http
+                                        .get(res.redirect, ctx.jar)
+                                        .then(parseAndCheckLogin(ctx, http));
+      }
+
+                        // TODO: handle multiple cookies?
+                        if (res.jsmods && res.jsmods.require && Array.isArray(res.jsmods.require[0]) && res.jsmods.require[0][0] === "Cookie") {
+        res.jsmods.require[0][3][0] = res.jsmods.require[0][3][0].replace("_js_", "");
+        const requireCookie = res.jsmods.require[0][3];
+                                ctx.jar.setCookie(formatCookie(requireCookie, "facebook"), "https://www.facebook.com");
+                                ctx.jar.setCookie(formatCookie(requireCookie, "messenger"), "https://www.messenger.com");
+      }
+
+                        // On every request we check if we got a DTSG and we mutate the context so that we use the latest
+                        // one for the next requests.
+                        if (res.jsmods && Array.isArray(res.jsmods.require)) {
+                                const arr = res.jsmods.require;
+                                for (const i in arr) {
+                                        if (arr[i][0] === "DTSG" && arr[i][1] === "setToken") {
+                                                ctx.fb_dtsg = arr[i][3][0];
+
+                                                // Update ttstamp since that depends on fb_dtsg
+                                                ctx.ttstamp = "2";
+                                                for (let j = 0; j < ctx.fb_dtsg.length; j++) {
+                                                        ctx.ttstamp += ctx.fb_dtsg.charCodeAt(j);
+                                                }
+                                        }
+                                }
+                        }
+
+                        if (res.error === 1357001) {
+                                const err = new Error('Facebook blocked the login');
+                                err.error = "Not logged in.";
+                                throw err;
+                        }
+                        return res;
+                }
+                return _try(any);
+        };
+}
+
+function saveCookies(jar) {
+        return function (res) {
+                const cookies = res.headers["set-cookie"] || [];
+                cookies.forEach(function (c) {
+                        if (c.indexOf(".facebook.com") > -1) {
+                                jar.setCookie(c, "https://www.facebook.com");
+                        }
+                        const c2 = c.replace(/domain=\.facebook\.com/, "domain=.messenger.com");
+                        jar.setCookie(c2, "https://www.messenger.com");
+                });
+                return res;
+        };
+}
+
+const NUM_TO_MONTH = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+];
+const NUM_TO_DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function formatDate(date) {
+        let d = date.getUTCDate();
+        d = d >= 10 ? d : "0" + d;
+        let h = date.getUTCHours();
+        h = h >= 10 ? h : "0" + h;
+        let m = date.getUTCMinutes();
+        m = m >= 10 ? m : "0" + m;
+        let s = date.getUTCSeconds();
+        s = s >= 10 ? s : "0" + s;
+        return (
+                NUM_TO_DAY[date.getUTCDay()] +
+                ", " +
+                d +
+                " " +
+                NUM_TO_MONTH[date.getUTCMonth()] +
+                " " +
+                date.getUTCFullYear() +
+                " " +
+                h +
+                ":" +
+                m +
+                ":" +
+                s +
+                " GMT"
+        );
+}
+
+function formatCookie(arr, url) {
+        return (
+                arr[0] + "=" + arr[1] + "; Path=" + arr[3] + "; Domain=" + url + ".com"
+        );
+}
+
+function formatThread(data) {
+        return {
+                threadID: formatID(data.thread_fbid.toString()),
+                participants: data.participants.map(formatID),
+                participantIDs: data.participants.map(formatID),
+                name: data.name,
+                nicknames: data.custom_nickname,
+                snippet: data.snippet,
+                snippetAttachments: data.snippet_attachments,
+                snippetSender: formatID((data.snippet_sender || "").toString()),
+                unreadCount: data.unread_count,
+                messageCount: data.message_count,
+                imageSrc: data.image_src,
+                timestamp: data.timestamp,
+                serverTimestamp: data.server_timestamp, // what is this?
+                muteUntil: data.mute_until,
+                isCanonicalUser: data.is_canonical_user,
+                isCanonical: data.is_canonical,
+                isSubscribed: data.is_subscribed,
+                folder: data.folder,
+                isArchived: data.is_archived,
+                recipientsLoadable: data.recipients_loadable,
+                hasEmailParticipant: data.has_email_participant,
+                readOnly: data.read_only,
+                canReply: data.can_reply,
+                cannotReplyReason: data.cannot_reply_reason,
+                lastMessageTimestamp: data.last_message_timestamp,
+                lastReadTimestamp: data.last_read_timestamp,
+                lastMessageType: data.last_message_type,
+                emoji: data.custom_like_icon,
+                color: data.custom_color,
+                adminIDs: data.admin_ids,
+                threadType: data.thread_type
+        };
+}
+
+function getType(obj) {
+        return Object.prototype.toString.call(obj).slice(8, -1);
+}
+
+function formatProxyPresence(presence, userID) {
+        if (presence.lat === undefined || presence.p === undefined) return null;
+        return {
+                type: "presence",
+                timestamp: presence.lat * 1000,
+                userID: userID,
+                statuses: presence.p
+        };
+}
+
+function formatPresence(presence, userID) {
+        return {
+                type: "presence",
+                timestamp: presence.la * 1000,
+                userID: userID,
+                statuses: presence.a
+        };
+}
+
+function decodeClientPayload(payload) {
+        /*
+        Special function which Client using to "encode" clients JSON payload
+        */
+        return JSON.parse(String.fromCharCode.apply(null, payload));
+}
+
+function getAppState(jar) {
+        return jar
+                .getCookies("https://www.facebook.com")
+                .concat(jar.getCookies("https://www.messenger.com"));
+}
+
+function getAccessFromBusiness(jar, Options) {
+  return function (res) {
+    var html = res ? res.body : null;
+    return get('https://business.facebook.com/content_management', jar, null, Options, null, { noRef: true })
+      .then(function (res) {
+        var token = /"accessToken":"([^.]+)","clientID":/g.exec(res.body)[1];
+        return [html, token];
+      })
+      .catch(function () {
+        return [html, null];
+      });
+  }
+}
+
+module.exports = {
+        isReadableStream,
+        get,
+        post,
+        postFormData,
+        generateThreadingID,
+        generateOfflineThreadingID,
+        getGUID,
+        getFrom,
+        makeParsable,
+        arrToForm,
+        getSignatureID,
+        getJar: request.jar,
+        generateTimestampRelative,
+        makeDefaults,
+        parseAndCheckLogin,
+        saveCookies,
+        getType,
+        _formatAttachment,
+        formatHistoryMessage,
+        formatID,
+        formatMessage,
+        formatDeltaEvent,
+        formatDeltaMessage,
+        formatProxyPresence,
+        formatPresence,
+        formatTyp,
+        formatDeltaReadReceipt,
+        formatCookie,
+        formatThread,
+        formatReadReceipt,
+        formatRead,
+        generatePresence,
+        generateAccessiblityCookie,
+        formatDate,
+        decodeClientPayload,
+        getAppState,
+        getAdminTextMessageType,
+        setProxy,
+  getAccessFromBusiness,
+  presenceDecode,
+  presenceEncode
+}
