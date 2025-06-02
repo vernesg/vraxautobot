@@ -1,1 +1,92 @@
-{}
+[
+  {
+    "key": "sb",
+    "value": "TcUvaKDWuZAHQZ1u0x6QY_ac",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "m_pixel_ratio",
+    "value": "2",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "vpd",
+    "value": "v1%3B626x360x2",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "x-referer",
+    "value": "eyJyIjoiL250L3NjcmVlbi8...",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "dpr",
+    "value": "2",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "ps_l",
+    "value": "1",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "ps_n",
+    "value": "1",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "datr",
+    "value": "axg7aJ487v4e0QOwGkm7hoI_",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "wd",
+    "value": "360x806",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "locale",
+    "value": "en_US",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "c_user",
+    "value": "61576157897362",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "xs",
+    "value": "31%3AVXrRgTgk5fAk2w%3A2%3A1748877284%3A-1%3A-1",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "fr",
+    "value": "1qDf2PLEo0RKDk048.AWdf2EREAOjuxh0A7p6XZmcNEp8i-H7FFSD74J0FR973RjRdTiM.BoOxhr..AAA.0.0.BoPb_w.AWdKvuBafIAc11qI4hWsG8D7oNM",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "fbl_st",
+    "value": "100620287%3BT%3A29147954",
+    "domain": ".facebook.com",
+    "path": "/"
+  },
+  {
+    "key": "wl_cbv",
+    "value": "v2%3Bclient_version%3A2834%3Btimestamp%3A1748877296",
+    "domain": ".facebook.com",
+    "path": "/"
+  }
+]
