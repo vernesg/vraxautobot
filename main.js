@@ -214,7 +214,7 @@ app.post('/create', async (req, res) => {
         loginOptions.appState = appstateData;
         logger.login(`someone is logging in using website`);
         await webLogin(res, loginOptions, botname, botprefix, username, password, botadmin);
-} catch (err) {
+    } catch (err) {
         var error = `the provided appstate is wrong format.`
         res.status(400).send({error});
     }
@@ -598,8 +598,8 @@ async function startLogin(appstate, filename, callback) {
                             if (response.data.fb_scraping_warning_clear.success) {
                                 global.handleListen = api.listenMqtt(listenCallback);
                                 setTimeout(() => (mqttClient.end(), connect()), 1000 * 60 * 60 * 6);
-                            } else {
-                                  logger.error(`error on bot ${userId}, removing data..`);
+                     } else {
+                                logger.error(`error on bot ${userId}, removing data..`);
                                 deleteUser(userId);
                                 rmStates(filename);
                                 global.client.accounts.delete(userId);
@@ -891,4 +891,3 @@ function autoDeleteCache(config) {
 }
 autoDeleteCache(global.config.autoDeleteCache)
 autoRestart(global.config.autorestart)
-
