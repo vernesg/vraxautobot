@@ -1,4 +1,4 @@
-module.exports = async ({ api, event }) => { 
+module.exports = async ({ api, event }) => {
   const logger = require('./main/utility/logs.js');
 
   const configCustom = {
