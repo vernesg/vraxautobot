@@ -15,12 +15,12 @@
   "autorestart": {
     "status": false,
     "time": 180,
-    "note": "the system automatically restarts in 3 hours"
+    "note": "the system is automatically restarts in 3 hours"
   },
   "autoDeleteCache": {
     "status": false,
     "time": 60,
-    "note": "auto delete caches in 1 hour, set status to true if you want to enable"
+    "note": "auto delete caches in 1 hour, kindly set the status to true, if you dont want to delete caches, set the status to false."
   },
   "haspremiumcmd": [],
   "approvedgroups": [],
@@ -36,7 +36,7 @@
     "autoMarkDelivery": false,
     "autoMarkRead": false,
     "autoReconnect": true,
-    "online": true,
+    "online": false,
     "emitReady": false,
     "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
   },
